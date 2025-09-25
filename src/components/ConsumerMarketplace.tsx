@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,99 +23,59 @@ import basketImage from "@/assets/organic-basket.jpg";
 const ConsumerMarketplace = () => {
   const [cart, setCart] = useState<Record<number, number>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [products, setProducts] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
+  const [showFilters, setShowFilters] = useState(false);
 
-  const products = [
-    { 
-      id: 1, 
-      name: "Organic Tomatoes", 
-      price: 80, 
-      originalPrice: 120,
-      farmer: "Ravi Kumar", 
-      location: "Bengaluru, Karnataka",
-      rating: 4.8,
-      reviews: 156,
-      image: basketImage,
-      category: "Vegetables",
-      freshness: "Harvested today",
-      certification: "Organic",
-      delivery: "Same day"
-    },
-    { 
-      id: 2, 
-      name: "Fresh Spinach", 
-      price: 60, 
-      originalPrice: 90,
-      farmer: "Sunita Devi", 
-      location: "Mysore, Karnataka",
-      rating: 4.9,
-      reviews: 89,
-      image: basketImage,
-      category: "Leafy Greens",
-      freshness: "Harvested yesterday",
-      certification: "Pesticide-free",
-      delivery: "Next day"
-    },
-    { 
-      id: 3, 
-      name: "Red Onions", 
-      price: 40, 
-      originalPrice: 65,
-      farmer: "Mohan Singh", 
-      location: "Hubli, Karnataka",
-      rating: 4.7,
-      reviews: 234,
-      image: basketImage,
-      category: "Vegetables",
-      freshness: "Fresh stock",
-      certification: "Natural",
-      delivery: "Same day"
-    },
-    { 
-      id: 4, 
-      name: "Green Chilies", 
-      price: 120, 
-      originalPrice: 180,
-      farmer: "Lakshmi Reddy", 
-      location: "Bangalore Rural",
-      rating: 4.8,
-      reviews: 67,
-      image: basketImage,
-      category: "Spices",
-      freshness: "Harvested today",
-      certification: "Organic",
-      delivery: "Same day"
-    },
-    { 
-      id: 5, 
-      name: "Fresh Carrots", 
-      price: 70, 
-      originalPrice: 100,
-      farmer: "Krishna Murthy", 
-      location: "Mandya, Karnataka",
-      rating: 4.6,
-      reviews: 198,
-      image: basketImage,
-      category: "Root Vegetables",
-      freshness: "Fresh stock",
-      certification: "Pesticide-free",
-      delivery: "Next day"
-    },
-    { 
-      id: 6, 
-      name: "Cauliflower", 
-      price: 50, 
-      originalPrice: 80,
-      farmer: "Geetha Kumari", 
-      location: "Hassan, Karnataka",
-      rating: 4.7,
-      reviews: 142,
-      image: basketImage,
-      category: "Vegetables",
-      freshness: "Harvested yesterday",
-      certification: "Natural",
-      delivery: "Same day"
-    }
-  ];
+  // Load products from farmers in real-time
+  useEffect(() => {
+    const loadFarmerProducts = () => {
+      const farmerProducts = JSON.parse(localStorage.getItem('farmerProducts') || '[]');
+      
+      // Transform farmer products to marketplace format
+      const marketplaceProducts = farmerProducts.map(product => {
+        console.log('Product bulk status:', product.name, product.isBulkQuantity);
+        return {
+          id: product.id,
+          name: product.name,
+          price: product.price.replace(/₹/g, '').replace(/\/kg/g, ''),
+          farmer: "Local Farmer", // Will be dynamic when user system is complete
+          location: product.location || "Karnataka, India",
+          image: product.image || basketImage,
+          category: product.category || "Vegetables",
+          freshness: product.harvestedDate ? `Harvested ${new Date(product.harvestedDate).toLocaleDateString()}` : "Fresh stock",
+          certification: "Farm Fresh",
+          delivery: "Same day",
+          stock: product.stock,
+          isBulkQuantity: product.isBulkQuantity || false
+        };
+      }); // Show all products including bulk quantities
+      
+      setProducts(marketplaceProducts);
+    };
+
+    // Load initially
+    loadFarmerProducts();
+    
+    // Listen for storage changes (when farmers add products)
+    const handleStorageChange = () => {
+      loadFarmerProducts();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically for same-tab updates
+    const interval = setInterval(loadFarmerProducts, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Only show real farmer products
+  const displayProducts = products;
 
   const categories = ["All", "Vegetables", "Fruits", "Leafy Greens", "Root Vegetables", "Spices"];
 
@@ -129,16 +89,89 @@ const ConsumerMarketplace = () => {
   const getTotalItems = () => Object.values(cart).reduce((sum, count) => sum + count, 0);
   const getTotalPrice = () => {
     return Object.entries(cart).reduce((sum, [id, count]) => {
-      const product = products.find(p => p.id === parseInt(id));
-      return sum + (product ? product.price * count : 0);
+      const product = displayProducts.find(p => p.id === parseInt(id));
+      return sum + (product ? parseInt(product.price) * count : 0);
     }, 0);
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.farmer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleCheckout = () => {
+    if (getTotalItems() === 0) {
+      alert('Your cart is empty!');
+      return;
+    }
+
+    // Create order details
+    const orderItems = Object.entries(cart).map(([id, count]) => {
+      const product = displayProducts.find(p => p.id === parseInt(id));
+      return {
+        productId: id,
+        name: product?.name,
+        quantity: count,
+        price: parseInt(product?.price || '0'),
+        total: count * parseInt(product?.price || '0')
+      };
+    });
+
+    const order = {
+      id: Date.now(),
+      items: orderItems,
+      totalAmount: getTotalPrice(),
+      totalItems: getTotalItems(),
+      orderDate: new Date().toISOString(),
+      status: 'confirmed'
+    };
+
+    // Save order to localStorage
+    const existingOrders = JSON.parse(localStorage.getItem('consumerOrders') || '[]');
+    localStorage.setItem('consumerOrders', JSON.stringify([...existingOrders, order]));
+
+    // Update farmer products with sold quantities
+    const farmerProducts = JSON.parse(localStorage.getItem('farmerProducts') || '[]');
+    const updatedFarmerProducts = farmerProducts.map(product => {
+      const soldItem = orderItems.find(item => item.productId == product.id);
+      if (soldItem) {
+        return {
+          ...product,
+          sales: (product.sales || 0) + soldItem.quantity,
+          stock: Math.max(0, product.stock - soldItem.quantity)
+        };
+      }
+      return product;
+    });
+    localStorage.setItem('farmerProducts', JSON.stringify(updatedFarmerProducts));
+
+    // Create farmer orders for each product
+    const farmerOrders = orderItems.map(item => ({
+      id: `ORD${Date.now()}-${item.productId}`,
+      customer: "Customer", // Will be dynamic when user system is complete
+      items: `${item.name} (${item.quantity}kg)`,
+      total: `₹${item.total}`,
+      status: "Processing",
+      orderDate: new Date().toISOString(),
+      productId: item.productId
+    }));
+
+    // Save farmer orders
+    const existingFarmerOrders = JSON.parse(localStorage.getItem('farmerOrders') || '[]');
+    localStorage.setItem('farmerOrders', JSON.stringify([...existingFarmerOrders, ...farmerOrders]));
+
+    // Clear cart
+    setCart({});
+
+    // Show success message
+    alert(`Order placed successfully! \nOrder ID: #${order.id}\nTotal: ₹${order.totalAmount}\nItems: ${order.totalItems}\n\nYour fresh produce will be delivered soon!`);
+  };
+
+  const filteredProducts = displayProducts.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.farmer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.category.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
+    const matchesPrice = parseInt(product.price) >= priceRange.min && parseInt(product.price) <= priceRange.max;
+    
+    return matchesSearch && matchesCategory && matchesPrice;
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 p-4">
@@ -159,7 +192,12 @@ const ConsumerMarketplace = () => {
                 </Badge>
               )}
             </Button>
-            <Button variant="consumer" size="lg">
+            <Button 
+              variant="consumer" 
+              size="lg"
+              onClick={handleCheckout}
+              disabled={getTotalItems() === 0}
+            >
               Checkout ₹{getTotalPrice()}
             </Button>
           </div>
@@ -178,7 +216,11 @@ const ConsumerMarketplace = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button variant="outline" className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2"
+                onClick={() => setShowFilters(!showFilters)}
+              >
                 <Filter className="w-4 h-4" />
                 Filters
               </Button>
@@ -186,11 +228,55 @@ const ConsumerMarketplace = () => {
             
             <div className="flex gap-2 mt-4 overflow-x-auto">
               {categories.map((category) => (
-                <Badge key={category} variant="secondary" className="cursor-pointer hover:bg-primary hover:text-primary-foreground whitespace-nowrap">
+                <Badge 
+                  key={category} 
+                  variant={selectedCategory === category ? "default" : "secondary"} 
+                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground whitespace-nowrap"
+                  onClick={() => setSelectedCategory(category)}
+                >
                   {category}
                 </Badge>
               ))}
             </div>
+            
+            {showFilters && (
+              <div className="mt-4 p-4 border rounded-lg bg-secondary/20">
+                <h3 className="font-semibold mb-3">Price Range</h3>
+                <div className="flex gap-4 items-center">
+                  <div>
+                    <Label htmlFor="min-price">Min Price</Label>
+                    <Input
+                      id="min-price"
+                      type="number"
+                      value={priceRange.min}
+                      onChange={(e) => setPriceRange(prev => ({ ...prev, min: parseInt(e.target.value) || 0 }))}
+                      className="w-20"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="max-price">Max Price</Label>
+                    <Input
+                      id="max-price"
+                      type="number"
+                      value={priceRange.max}
+                      onChange={(e) => setPriceRange(prev => ({ ...prev, max: parseInt(e.target.value) || 1000 }))}
+                      className="w-20"
+                    />
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setSelectedCategory("All");
+                      setPriceRange({ min: 0, max: 1000 });
+                      setSearchQuery("");
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -204,11 +290,15 @@ const ConsumerMarketplace = () => {
                   alt={product.name}
                   className="w-full h-48 object-cover rounded-t-lg"
                 />
-                <div className="absolute top-3 left-3">
-                  <Badge variant="default" className="bg-success text-success-foreground">
-                    {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
-                  </Badge>
-                </div>
+
+                {product.isBulkQuantity && (
+                  <div className="absolute top-3 left-3">
+                    <Badge className="bg-orange-500 text-white font-bold px-3 py-1 text-sm">
+                      BULK QUANTITY
+                    </Badge>
+                  </div>
+                )}
+
                 <div className="absolute top-3 right-3">
                   <Button variant="ghost" size="icon" className="bg-background/80 hover:bg-background">
                     <Heart className="w-4 h-4" />
@@ -233,16 +323,10 @@ const ConsumerMarketplace = () => {
                   </div>
                   <div className="text-right">
                     <div className="text-xl font-bold text-success">₹{product.price}/kg</div>
-                    <div className="text-sm text-muted-foreground line-through">₹{product.originalPrice}</div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between mt-3">
-                  <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 fill-warning text-warning" />
-                    <span className="text-sm font-medium">{product.rating}</span>
-                    <span className="text-sm text-muted-foreground">({product.reviews})</span>
-                  </div>
+                <div className="flex items-center justify-end mt-3">
                   <div className="flex items-center gap-1 text-sm text-success">
                     <Clock className="w-3 h-3" />
                     {product.freshness}
@@ -254,9 +338,16 @@ const ConsumerMarketplace = () => {
                     <Truck className="w-3 h-3 mr-1" />
                     {product.delivery}
                   </Badge>
-                  <Badge variant="secondary" className="text-xs">
-                    {product.category}
-                  </Badge>
+                  <div className="flex gap-1">
+                    {product.isBulkQuantity && (
+                      <Badge variant="default" className="text-xs bg-orange-500 text-white">
+                        Bulk Quantity
+                      </Badge>
+                    )}
+                    <Badge variant="secondary" className="text-xs">
+                      {product.category}
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
 
@@ -316,7 +407,7 @@ const ConsumerMarketplace = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {products.slice(0, 3).map((product) => (
+              {displayProducts.slice(0, 3).map((product) => (
                 <div key={product.id} className="flex items-center gap-3 p-3 bg-background/60 rounded-lg">
                   <img src={product.image} alt={product.name} className="w-12 h-12 object-cover rounded" />
                   <div className="flex-1">

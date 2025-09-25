@@ -78,18 +78,18 @@ const HomePage = ({ onViewChange }: HomePageProps) => {
                 <Button
                   variant="hero"
                   size="xl"
-                  onClick={() => onViewChange("consumer")}
+                  onClick={() => onViewChange("login")}
                   className="group"
                 >
-                  Start Shopping
+                  Login
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1" />
                 </Button>
                 <Button
                   variant="farmer"
                   size="xl"
-                  onClick={() => onViewChange("farmer")}
+                  onClick={() => onViewChange("signup")}
                 >
-                  Join as Farmer
+                  Sign Up
                 </Button>
               </div>
 
@@ -176,11 +176,11 @@ const HomePage = ({ onViewChange }: HomePageProps) => {
                 while providing consumers with 30% savings on fresh produce. Join the agricultural revolution today.
               </p>
               <div className="flex gap-4">
-                <Button variant="success" size="lg" onClick={() => onViewChange("farmer")}>
-                  Become a Farmer Partner
+                <Button variant="success" size="lg" onClick={() => onViewChange("signup")}>
+                  Get Started Today
                 </Button>
-                <Button variant="outline" size="lg" onClick={() => onViewChange("consumer")}>
-                  Shop Fresh Produce
+                <Button variant="outline" size="lg" onClick={() => onViewChange("login")}>
+                  Already Have Account?
                 </Button>
               </div>
             </div>
